@@ -1,4 +1,4 @@
-# Advent of Code 2021 in :sparkle: Rust :sparkle:
+# Advent of Code 2021 in :sparkles: Rust :sparkles:
 
 (*cracks knuckles*) here we go again
 
