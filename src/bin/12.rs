@@ -3,7 +3,7 @@ use std::collections::*;
 fn main() {
     let input = std::fs::read_to_string("input/12").unwrap();
     let graph = parse_input(&input);
-    part1(graph);
+    part2(graph);
 }
 
 fn parse_input(input: &str) -> Graph {
@@ -12,9 +12,18 @@ fn parse_input(input: &str) -> Graph {
 }
 
 fn part1(mut graph: Graph) {
-    graph.find_paths(VisitLogic::type_A);
-    dbg!(&graph.nodes, &graph.edges, &graph.paths);
+    graph.find_paths();
+    // dbg!(&graph.nodes, &graph.edges, &graph.paths);
     println!("Part 1 sol: {}", &graph.paths.len());
+}
+
+fn part2(mut graph: Graph) {
+    graph.find_paths_part_two();
+
+    let mut paths = graph.paths.into_iter().collect::<Vec<String>>();
+    paths.sort();
+    // dbg!(&graph.nodes, &graph.edges, &paths);
+    println!("Part 2 sol: {}", &paths.len());
 }
 
 struct Graph {
@@ -61,23 +70,68 @@ impl Graph {
         }
     }
 
-    fn find_paths(&mut self, update_visit_status: fn() -> bool) {
-        // pick node
-        // mark it visited if applicable
-        // then pick all visitable nodes connected to curr node
-        // if no node or reached end node then return back
-        let visited = HashMap::new();
+    fn find_paths(&mut self) {
+        // run dfs that can take variable strategy to
+        // mark a node visitable or not
 
-        self.run_dfs(&self.start.to_owned(), visited, "", update_visit_status);
+        let visit_map = self.init_visited_part_one();
+        let path_so_far = "";
+
+        self.run_dfs(&self.start.to_owned(), visit_map, path_so_far);
+    }
+
+    fn find_paths_part_two(&mut self) {
+        let visit_maps = self.init_visisted_part_two();
+
+        for visit_map in visit_maps {
+            let path_so_far = "";
+            self.run_dfs(&self.start.to_owned(), visit_map, path_so_far);
+        }
+    }
+
+    fn init_visited_part_one(&self) -> HashMap<String, VisitStatus> {
+        let mut map: HashMap<String, VisitStatus> = HashMap::new();
+
+        for node in &self.nodes {
+            let mut visit_status = VisitStatus::default();
+
+            if Util::is_lowercase_word(&node) {
+                visit_status.infinitly_visitable = false;
+                visit_status.remaining_visits = 1;
+            }
+            map.insert(node.to_string(), visit_status);
+        }
+
+        map
+    }
+
+    fn init_visisted_part_two(&self) -> Vec<HashMap<String, VisitStatus>> {
+        let mut map_list: Vec<HashMap<String, VisitStatus>> = Vec::new();
+
+        for node in &self.nodes {
+            if *node == self.start || *node == self.end {
+                continue;
+            }
+            let mut map = self.init_visited_part_one();
+
+            if Util::is_lowercase_word(&node) {
+                map.get_mut(node).unwrap().remaining_visits = 2;
+            }
+
+            map_list.push(map);
+        }
+
+        map_list
     }
 
     fn run_dfs(
         &mut self,
         node: &str,
-        mut visited: HashMap<String, i32>,
+        mut visited: HashMap<String, VisitStatus>,
         path_so_far: &str,
-        update_visit_status: fn() -> bool,
     ) {
+        Graph::visit_logic(node, &mut visited);
+
         // return if we reached end node
         // this is base condition
         if node == self.end {
@@ -85,41 +139,61 @@ impl Graph {
                 .insert(path_so_far.to_owned() + &self.end.to_owned());
             return;
         }
-
-        if node.chars().all(|c| c.is_lowercase()) {
-            let entry = visited.entry(node.to_string()).or_insert(0);
-            *entry = 1;
-        }
-
         // find all visitable neighbours and run dfs on each node
         let neighbours = self.edges.get(node).unwrap().to_owned();
         for neighbour in neighbours {
-            if *visited.entry(neighbour.clone()).or_insert(0) == 0 {
+            if visited
+                .entry(neighbour.clone())
+                .or_insert(VisitStatus::default())
+                .is_visitable
+            {
                 self.run_dfs(
                     &neighbour,
                     visited.clone(),
                     &(path_so_far.to_owned() + node + &",".to_owned()),
-                    update_visit_status,
                 );
             }
         }
     }
-}
 
-#[derive(Clone)]
-struct VisitStatus {
-    freq: i32,
-    is_visitable: bool,
-}
+    fn visit_logic(node: &str, visit_map: &mut HashMap<String, VisitStatus>) {
+        let mut entry = visit_map
+            .entry(node.to_owned())
+            .or_insert(VisitStatus::default())
+            .clone();
 
-struct VisitLogic {}
+        if entry.infinitly_visitable {
+            return;
+        }
 
-impl VisitLogic {
-    fn type_A() -> bool {
-        false
+        entry.remaining_visits -= 1;
+        if entry.remaining_visits == 0 {
+            entry.is_visitable = false;
+        }
+
+        visit_map.insert(node.to_string(), entry.clone());
     }
+}
 
-    fn type_B() -> bool {
-        false
+#[derive(Debug, Clone)]
+struct VisitStatus {
+    remaining_visits: i32,
+    is_visitable: bool,
+    infinitly_visitable: bool,
+}
+impl VisitStatus {
+    fn default() -> VisitStatus {
+        VisitStatus {
+            remaining_visits: 0,
+            is_visitable: true,
+            infinitly_visitable: true,
+        }
+    }
+}
+
+struct Util;
+impl Util {
+    fn is_lowercase_word(word: &str) -> bool {
+        word.chars().all(|char| char.is_lowercase())
     }
 }
